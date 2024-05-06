@@ -12,3 +12,7 @@ feature_extraction/out/
 feature_extraction/__pycache__/
 feature_extraction/images/
 feature_extraction/LEF/circuitnet.lef
+routability_features/
+routability_features_decompressed/
+routability_features_training_data/
+routability_ir_drop_prediction/work_dir/

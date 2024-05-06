@@ -24,7 +24,7 @@ class Parser(object):
         
     def get_remainder(self):
         if self.parser.parse_args().task == 'congestion_gpdl':
-            self.parser.add_argument('--dataroot', default='../../training_set/congestion')
+            self.parser.add_argument('--dataroot', default='./routability_features_training_data/congestion')
             self.parser.add_argument('--ann_file_train', default='./files/train_N28.csv')
             self.parser.add_argument('--ann_file_test', default='./files/test_N28.csv')
             self.parser.add_argument('--dataset_type', default='CongestionDataset')
