@@ -20,6 +20,7 @@ class Parser(object):
         self.parser.add_argument('--plot_roc', action='store_true')
         self.parser.add_argument('--arg_file', default=None)
         self.parser.add_argument('--cpu', action='store_true')
+        
         self.get_remainder()
         
     def get_remainder(self):
@@ -27,6 +28,7 @@ class Parser(object):
             self.parser.add_argument('--dataroot', default='./routability_features_training_data/congestion')
             self.parser.add_argument('--ann_file_train', default='./files/train_N28.csv')
             self.parser.add_argument('--ann_file_test', default='./files/test_N28.csv')
+            # self.parser.add_argument('--ann_file_test', default='./files/example_N28.csv')
             self.parser.add_argument('--dataset_type', default='CongestionDataset')
             self.parser.add_argument('--batch_size', default=16)
             self.parser.add_argument('--aug_pipeline', default=['Flip'])
@@ -37,7 +39,8 @@ class Parser(object):
             self.parser.add_argument('--lr', default=2e-4)
             self.parser.add_argument('--weight_decay', default=0)
             self.parser.add_argument('--loss_type', default='MSELoss')
-            self.parser.add_argument('--eval-metric', default=['NRMS', 'SSIM', 'EMD'])
+            # self.parser.add_argument('--eval-metric', default=['NRMS', 'SSIM', 'EMD'])
+            self.parser.add_argument('--eval-metric', default=[])
 
         elif self.parser.parse_args().task == 'drc_routenet':
             self.parser.add_argument('--dataroot', default='../../training_set/DRC')

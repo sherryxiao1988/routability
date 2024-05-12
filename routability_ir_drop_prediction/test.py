@@ -60,6 +60,7 @@ def test():
                 file_name = osp.splitext(osp.basename(label_path[0]))[0]
                 save_path = osp.join(save_path, f'{file_name}.npy')
                 output_final = prediction.float().detach().cpu().numpy()
+                # output_final = np.reshape(prediction.float().detach().cpu().numpy(), (256, 256, 1))
                 np.save(save_path, output_final)
                 count +=1
 
