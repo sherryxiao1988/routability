@@ -37,6 +37,18 @@ class PatchEncoder(nn.Module):
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
 
+class UpConv(nn.Module):
+    def __init__(self, dim_in, dim_out):
+        super().__init__()
+        self.main = nn.Sequential(
+                nn.ConvTranspose2d(dim_in, dim_out, kernel_size=4, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(dim_out),
+                nn.LeakyReLU(),
+        )
+
+    def forward(self, input):
+        return self.main(input)
+
 class VisionTransformer(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
@@ -47,11 +59,31 @@ class VisionTransformer(nn.Module):
            *[nn.TransformerEncoderLayer(FEATURE_SIZE, NUM_HEADS, dim_feedforward=MLP_SIZE, batch_first=True) for _ in range(NUM_ENCODERS)],
         )
 
+        # now (N, 512, 16, 16)
+        self.upconv1 = UpConv(1024, 512)
+        self.upconv2 = UpConv(512, 256)
+        self.upconv3 = UpConv(256, 128)
+        self.upconv4 = UpConv(128, 64)
+        self.upconv5 = UpConv(64, 32)
+
+        self.conv_out = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1, bias=False)
+
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
         patches = self.patches(x)
         encoded_patches = self.encoded_patches(patches)
+        # encoder_output: (N, num_batches, feature_size)
+        # [128, 1024, 64]
         encoder_output = self.transformer_encoders(encoded_patches)
-        print("encoder output shape: ", encoder_output.shape)
+        x = encoder_output.view(-1, 1024, 8, 8)
+        x = self.upconv1(x)
+        x = self.upconv2(x)
+        x = self.upconv3(x)
+        x = self.upconv4(x)
+        x = self.upconv5(x)
+        x = self.conv_out(x)
+        x = self.sigmoid(x)
 
         return x
 
