@@ -33,7 +33,7 @@ class Parser(object):
             self.parser.add_argument('--batch_size', default=128)
             self.parser.add_argument('--aug_pipeline', default=['Flip'])
             
-            self.parser.add_argument('--model_type', default='GPDL')
+            self.parser.add_argument('--model_type', default='VisionTransformer')
             self.parser.add_argument('--in_channels', default=3)
             self.parser.add_argument('--out_channels', default=1)
             self.parser.add_argument('--lr', default=1e-4)
@@ -41,6 +41,11 @@ class Parser(object):
             self.parser.add_argument('--loss_type', default='MSELoss')
             self.parser.add_argument('--eval-metric', default=['NRMS', 'SSIM', 'EMD'])
             # self.parser.add_argument('--eval-metric', default=[])
+
+            self.parser.add_argument('--patch_size', default=8)
+            # (img_height / patch_size) ** 2
+            self.parser.add_argument('--num_patches', default=1024)
+            self.parser.add_argument('--projection_dim', default=64)
 
         elif self.parser.parse_args().task == 'drc_routenet':
             self.parser.add_argument('--dataroot', default='../../training_set/DRC')
