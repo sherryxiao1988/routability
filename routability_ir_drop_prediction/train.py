@@ -5,6 +5,7 @@ import json
 import torch
 import torch.optim as optim
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 from datasets.build_dataset import build_dataset
 from utils.losses import build_loss
@@ -128,7 +129,12 @@ def train():
     epoch_loss = 0
     iter_num = 0
     print_freq = 100
-    save_freq = 10000
+    save_freq = 1000
+
+    log_output_path = f"{arg_dict['save_path']}/logs"
+    if not os.path.exists(log_output_path):
+        os.makedirs(log_output_path)
+    writer = SummaryWriter(log_dir=log_output_path)
 
     while iter_num < arg_dict['max_iters']:
         with tqdm(total=print_freq) as bar:
@@ -157,11 +163,13 @@ def train():
                 if iter_num % print_freq == 0:
                     break
 
+        writer.add_scalar('Loss/train', epoch_loss / print_freq, iter_num)
         print("===> Iters[{}]({}/{}): Loss: {:.4f}".format(iter_num, iter_num, arg_dict['max_iters'], epoch_loss / print_freq))
         if iter_num % save_freq == 0:
             checkpoint(model, iter_num, arg_dict['save_path'])
         epoch_loss = 0
 
+    writer.close()
 
 
 if __name__ == "__main__":
