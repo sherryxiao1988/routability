@@ -37,6 +37,42 @@ class PatchEncoder(nn.Module):
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
 
+class ResidualBlock(nn.Module):
+    def __init__(self, filters, downsample=False, kernel_size=3):
+        super(ResidualBlock, self).__init__()
+        self.downsample = downsample
+        stride = 2 if downsample else 1
+
+        self.conv1 = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size,
+                               stride=stride, padding=kernel_size//2, bias=False)
+        self.relu1 = nn.ReLU()
+        self.bn1 = nn.BatchNorm2d(filters)
+        
+        self.conv2 = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size,
+                               stride=1, padding=kernel_size//2, bias=False)
+        self.relu2 = nn.ReLU()
+        self.bn2 = nn.BatchNorm2d(filters)
+
+        if downsample:
+            self.downsample_conv = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=1,
+                                             stride=2, padding=0, bias=False)
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(self.relu1(out))
+        
+        out = self.conv2(out)
+        
+        if self.downsample:
+            identity = self.downsample_conv(identity)
+        
+        out += identity
+        out = self.bn2(self.relu2(out))
+        
+        return out
+
 class UpConv(nn.Module):
     def __init__(self, dim_in, dim_out):
         super().__init__()
@@ -44,6 +80,7 @@ class UpConv(nn.Module):
                 nn.ConvTranspose2d(dim_in, dim_out, kernel_size=4, stride=2, padding=1, bias=False),
                 nn.BatchNorm2d(dim_out),
                 nn.LeakyReLU(),
+                ResidualBlock(dim_out),
         )
 
     def forward(self, input):

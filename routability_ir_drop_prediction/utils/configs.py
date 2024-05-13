@@ -34,6 +34,7 @@ class Parser(object):
             self.parser.add_argument('--aug_pipeline', default=['Flip'])
             
             self.parser.add_argument('--model_type', default='VisionTransformer')
+            # self.parser.add_argument('--model_type', default='GPDL')
             self.parser.add_argument('--in_channels', default=3)
             self.parser.add_argument('--out_channels', default=1)
             self.parser.add_argument('--lr', default=1e-4)
