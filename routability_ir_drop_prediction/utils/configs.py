@@ -42,10 +42,10 @@ class Parser(object):
             self.parser.add_argument('--eval-metric', default=['NRMS', 'SSIM', 'EMD'])
             # self.parser.add_argument('--eval-metric', default=[])
 
-            self.parser.add_argument('--patch_size', default=8)
+            # self.parser.add_argument('--patch_size', default=8)
             # (img_height / patch_size) ** 2
-            self.parser.add_argument('--num_patches', default=1024)
-            self.parser.add_argument('--projection_dim', default=64)
+            # self.parser.add_argument('--num_patches', default=1024)
+            # self.parser.add_argument('--tranformer_feature_size', default=64)
 
         elif self.parser.parse_args().task == 'drc_routenet':
             self.parser.add_argument('--dataroot', default='../../training_set/DRC')

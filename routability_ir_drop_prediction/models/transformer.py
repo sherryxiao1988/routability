@@ -1,6 +1,14 @@
 import torch
 import torch.nn as nn
 
+PATCH_SIZE = 8
+NUM_PATCHES = 1024
+FEATURE_SIZE = 64
+NUM_HEADS = 2
+MLP_SIZE = 32
+NUM_ENCODERS = 4
+
+
 class Patches(nn.Module):
     def __init__(self, patch_size):
         super().__init__()
@@ -15,14 +23,14 @@ class Patches(nn.Module):
         return patches
 
 class PatchEncoder(nn.Module):
-    def __init__(self, patch_size, num_patches, projection_dim):
+    def __init__(self, patch_size, num_patches, transformer_feature_size):
         super().__init__()
         self.num_patches = num_patches
         # The Transformer uses constant latent vector size D through all of its layers, 
         # so we flatten the patches and map to D dimensions with a trainable linear projection
         # here from 192 -> 64
-        self.projection = nn.Linear(patch_size * patch_size * 3, projection_dim)
-        self.position_embedding = nn.Embedding(num_patches, projection_dim)
+        self.projection = nn.Linear(patch_size * patch_size * 3, transformer_feature_size)
+        self.position_embedding = nn.Embedding(num_patches, transformer_feature_size)
 
     def forward(self, patch):
         positions = torch.arange(0, self.num_patches).to(patch.device)
@@ -30,16 +38,21 @@ class PatchEncoder(nn.Module):
         return encoded
 
 class VisionTransformer(nn.Module):
-    def __init__(self, patch_size, num_patches, projection_dim, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__()
 
-        self.patches = Patches(patch_size)
-        self.encoded_patches = PatchEncoder(patch_size, num_patches, projection_dim)
-
+        self.patches = Patches(PATCH_SIZE)
+        self.encoded_patches = PatchEncoder(PATCH_SIZE, NUM_PATCHES, FEATURE_SIZE)
+        self.transformer_encoders = nn.Sequential(
+           *[nn.TransformerEncoderLayer(FEATURE_SIZE, NUM_HEADS, dim_feedforward=MLP_SIZE, batch_first=True) for _ in range(NUM_ENCODERS)],
+        )
 
     def forward(self, x):
         patches = self.patches(x)
         encoded_patches = self.encoded_patches(patches)
+        encoder_output = self.transformer_encoders(encoded_patches)
+        print("encoder output shape: ", encoder_output.shape)
+
         return x
 
     def init_weights(self, pretrained=None, pretrained_transfer=None, strict=False, **kwargs):
