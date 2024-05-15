@@ -1,13 +1,60 @@
 import torch
 import torch.nn as nn
+from collections import OrderedDict
 
 PATCH_SIZE = 8
 NUM_PATCHES = 1024
 FEATURE_SIZE = 64
-NUM_HEADS = 2
-MLP_SIZE = 32
+NUM_HEADS = 8
+MLP_SIZE = 128 
 NUM_ENCODERS = 4
 
+
+def load_state_dict(module, state_dict, strict=False, logger=None):
+    unexpected_keys = []
+    all_missing_keys = []
+    err_msg = []
+
+    metadata = getattr(state_dict, '_metadata', None)
+    state_dict = state_dict.copy()
+    if metadata is not None:
+        state_dict._metadata = metadata
+
+    def load(module, prefix=''):
+        local_metadata = {} if metadata is None else metadata.get(
+            prefix[:-1], {})
+        module._load_from_state_dict(state_dict, prefix, local_metadata, True,
+                                     all_missing_keys, unexpected_keys,
+                                     err_msg)
+        for name, child in module._modules.items():
+            if child is not None:
+                load(child, prefix + name + '.')
+
+    load(module)
+    load = None
+
+    missing_keys = [
+        key for key in all_missing_keys if 'num_batches_tracked' not in key
+    ]
+
+    if unexpected_keys:
+        err_msg.append('unexpected key in source '
+                       f'state_dict: {", ".join(unexpected_keys)}\n')
+    if missing_keys:
+        err_msg.append(
+            f'missing keys in source state_dict: {", ".join(missing_keys)}\n')
+
+    if len(err_msg) > 0:
+        err_msg.insert(
+            0, 'The model and loaded state dict do not match exactly\n')
+        err_msg = '\n'.join(err_msg)
+        if strict:
+            raise RuntimeError(err_msg)
+        elif logger is not None:
+            logger.warning(err_msg)
+        else:
+            print(err_msg)
+    return missing_keys
 
 class Patches(nn.Module):
     def __init__(self, patch_size):
@@ -125,16 +172,16 @@ class VisionTransformer(nn.Module):
         return x
 
     def init_weights(self, pretrained=None, pretrained_transfer=None, strict=False, **kwargs):
-        pass
-        # if isinstance(pretrained, str):
-        #     new_dict = OrderedDict()
-        #     weight = torch.load(pretrained, map_location='cpu')['state_dict']
-        #     for k in weight.keys():
-        #         new_dict[k] = weight[k]
-        #     load_state_dict(self, new_dict, strict=strict, logger=None)
-        # elif pretrained is None:
-        #     generation_init_weights(self)
-        # else:
-        #     raise TypeError("'pretrained' must be a str or None. "
-        #                     f'But received {type(pretrained)}.')
+        if isinstance(pretrained, str):
+            new_dict = OrderedDict()
+            weight = torch.load(pretrained, map_location='cpu')['state_dict']
+            for k in weight.keys():
+                new_dict[k] = weight[k]
+            load_state_dict(self, new_dict, strict=strict, logger=None)
+        elif pretrained is None:
+            pass
+            # generation_init_weights(self)
+        else:
+            raise TypeError("'pretrained' must be a str or None. "
+                            f'But received {type(pretrained)}.')
 
