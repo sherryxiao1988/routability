@@ -7,7 +7,7 @@ NUM_PATCHES = 1024
 FEATURE_SIZE = 64
 NUM_HEADS = 8
 MLP_SIZE = 128 
-NUM_ENCODERS = 4
+NUM_ENCODERS = 5
 
 
 def load_state_dict(module, state_dict, strict=False, logger=None):
@@ -121,17 +121,41 @@ class ResidualBlock(nn.Module):
         return out
 
 class UpConv(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, skip_in=0):
         super().__init__()
+        # self.process_skip = nn.Sequential(
+        #     nn.Conv2d(skip_in, skip_in, kernel_size=3, padding=1),  # You can adjust the number of output channels
+        #     nn.LeakyReLU(),
+        #     nn.BatchNorm2d(skip_in)
+        # )
         self.main = nn.Sequential(
-                nn.ConvTranspose2d(dim_in, dim_out, kernel_size=4, stride=2, padding=1, bias=False),
+                nn.ConvTranspose2d(dim_in + skip_in, dim_out, kernel_size=4, stride=2, padding=1, bias=False),
                 nn.BatchNorm2d(dim_out),
                 nn.LeakyReLU(),
-                ResidualBlock(dim_out),
+                # ResidualBlock(dim_out),
         )
 
-    def forward(self, input):
+    def forward(self, input, skip=None):
+        if skip is not None:
+            skip = skip.view(input.shape[0], -1, input.shape[2], input.shape[3])
+            # skip = self.process_skip(skip)
+            input = torch.cat([input, skip], dim = 1)
         return self.main(input)
+
+class TranformerEncoder(nn.Module):
+    def __init__(self, feature_size, num_heads, mlp_size, num_layers):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            nn.TransformerEncoderLayer(feature_size, num_heads, mlp_size, batch_first=True)
+            for _ in range(num_layers)
+        ])
+    
+    def forward(self, x):
+        outputs = []
+        for layer in self.layers:
+            x = layer(x)
+            outputs.append(x)
+        return outputs
 
 class VisionTransformer(nn.Module):
     def __init__(self, **kwargs):
@@ -139,16 +163,17 @@ class VisionTransformer(nn.Module):
 
         self.patches = Patches(PATCH_SIZE)
         self.encoded_patches = PatchEncoder(PATCH_SIZE, NUM_PATCHES, FEATURE_SIZE)
-        self.transformer_encoders = nn.Sequential(
-           *[nn.TransformerEncoderLayer(FEATURE_SIZE, NUM_HEADS, dim_feedforward=MLP_SIZE, batch_first=True) for _ in range(NUM_ENCODERS)],
-        )
+        # self.transformer_encoders = nn.Sequential(
+        #    *[nn.TransformerEncoderLayer(FEATURE_SIZE, NUM_HEADS, dim_feedforward=MLP_SIZE, batch_first=True) for _ in range(NUM_ENCODERS)],
+        # )
+        self.transformer_encoders = TranformerEncoder(FEATURE_SIZE, NUM_HEADS, MLP_SIZE, NUM_ENCODERS)
 
         # now (N, 512, 16, 16)
         self.upconv1 = UpConv(1024, 512)
-        self.upconv2 = UpConv(512, 256)
-        self.upconv3 = UpConv(256, 128)
-        self.upconv4 = UpConv(128, 64)
-        self.upconv5 = UpConv(64, 32)
+        self.upconv2 = UpConv(512, 256, 256)
+        self.upconv3 = UpConv(256, 128, 64)
+        self.upconv4 = UpConv(128, 64, 16)
+        self.upconv5 = UpConv(64, 32, 4)
 
         self.conv_out = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1, bias=False)
 
@@ -160,12 +185,19 @@ class VisionTransformer(nn.Module):
         # encoder_output: (N, num_batches, feature_size)
         # [128, 1024, 64]
         encoder_output = self.transformer_encoders(encoded_patches)
-        x = encoder_output.view(-1, 1024, 8, 8)
+        x = encoder_output[-1]
+        x = x.view(-1, 1024, 8, 8)
+        # x = encoder_output.view(-1, 1024, 8, 8)
+        # input (N, 1024, 8, 8)
         x = self.upconv1(x)
-        x = self.upconv2(x)
-        x = self.upconv3(x)
-        x = self.upconv4(x)
-        x = self.upconv5(x)
+        # input (N, 512 + 256, 16, 16)
+        x = self.upconv2(x, skip=encoder_output[-2])
+        # input (N, 256 + 64, 32, 32)
+        x = self.upconv3(x, skip=encoder_output[-3])
+        # input (N, 128 + 16, 64, 64)
+        x = self.upconv4(x, skip=encoder_output[-4])
+        # input (N, 64 + 4, 128, 128)
+        x = self.upconv5(x, skip=encoder_output[-5])
         x = self.conv_out(x)
         x = self.sigmoid(x)
 
