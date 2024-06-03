@@ -82,7 +82,7 @@ class CosineRestartLr(object):
 
 def train(arg_dict, 
         #   FEATURE_SIZE, NUM_HEADS, MLP_SIZE, 
-          LR, WEIGHT_DECAY, trial_number):
+          LR, WEIGHT_DECAY, BATCH_SIZE, trial_number):
     save_path = "trail_" + str(trial_number)
     arg_dict['save_path'] = save_path
     if not os.path.exists(arg_dict['save_path']):
@@ -92,6 +92,7 @@ def train(arg_dict,
 
     arg_dict['ann_file'] = arg_dict['ann_file_train']
     arg_dict['test_mode'] = False
+    arg_dict['batch_size'] = BATCH_SIZE
     # arg_dict['FEATURE_SIZE'] = FEATURE_SIZE
     # arg_dict['NUM_HEADS'] = NUM_HEADS
     # arg_dict['MLP_SIZE'] = MLP_SIZE
@@ -213,6 +214,7 @@ def objective(trial):
     # NUM_ENCODERS = trial.suggest_int('NUM_ENCODERS', 3, 12)
     LR = trial.suggest_loguniform('lr', 1e-5, 1e-3)
     WEIGHT_DECAY = trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
+    BATCH_SIZE = trial.suggest_categorical('BATCH_SIZE', [32, 64, 128])
 
     argp = Parser()
     arg = argp.parser.parse_args()
@@ -223,7 +225,7 @@ def objective(trial):
                 # FEATURE_SIZE,
                 # NUM_HEADS, MLP_SIZE,
                 # NUM_ENCODERS,
-                LR, WEIGHT_DECAY, trial.number)
+                LR, WEIGHT_DECAY, BATCH_SIZE, trial.number)
     val_loss = validate(model, arg_dict)
     return val_loss
 
