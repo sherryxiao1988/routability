@@ -16,7 +16,7 @@ class Parser(object):
     
         self.parser.add_argument('--pretrained', default=None)
 
-        self.parser.add_argument('--max_iters', default=20000)
+        self.parser.add_argument('--max_iters', default=3000)
         self.parser.add_argument('--plot_roc', action='store_true')
         self.parser.add_argument('--arg_file', default=None)
         self.parser.add_argument('--cpu', action='store_true')
@@ -30,10 +30,10 @@ class Parser(object):
             self.parser.add_argument('--ann_file_test', default='./files/test_N28.csv')
             # self.parser.add_argument('--ann_file_test', default='./files/example_N28.csv')
             self.parser.add_argument('--dataset_type', default='CongestionDataset')
-            self.parser.add_argument('--batch_size', default=64)
+            self.parser.add_argument('--batch_size', default=32)
             self.parser.add_argument('--aug_pipeline', default=['Flip'])
             
-            self.parser.add_argument('--model_type', default='FPNModel')
+            self.parser.add_argument('--model_type', default='VisionTransformer')
             # self.parser.add_argument('--model_type', default='GPDL')
             self.parser.add_argument('--in_channels', default=3)
             self.parser.add_argument('--out_channels', default=1)
@@ -59,7 +59,7 @@ class Parser(object):
             self.parser.add_argument('--model_type', default='RouteNet')
             self.parser.add_argument('--in_channels', default=9)
             self.parser.add_argument('--out_channels', default=1)
-            self.parser.add_argument('--lr', default=2e-4)
+            self.parser.add_argument('--lr', default=1e-4)
             self.parser.add_argument('--weight_decay', default=1e-4)
             self.parser.add_argument('--loss_type', default='MSELoss')
             self.parser.add_argument('--eval-metric', default=['NRMS', 'SSIM'])

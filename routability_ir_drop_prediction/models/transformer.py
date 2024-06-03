@@ -4,9 +4,9 @@ from collections import OrderedDict
 
 PATCH_SIZE = 8
 NUM_PATCHES = 1024
-FEATURE_SIZE = 64
-NUM_HEADS = 8
-MLP_SIZE = 128 
+# FEATURE_SIZE = 64
+# NUM_HEADS = 8
+# MLP_SIZE = 128 
 NUM_ENCODERS = 5
 
 
@@ -55,6 +55,48 @@ def load_state_dict(module, state_dict, strict=False, logger=None):
         else:
             print(err_msg)
     return missing_keys
+
+class CoordinateEncoder(nn.Module):
+    def __init__(self, w=256,h=256):
+        super().__init__()
+        self.w = w
+        self.h = h
+
+    def forward(self, input_tensor):
+        """
+        :param input_tensor: shape (N, C_in, H, W)
+        :return:
+        """
+
+        batch_size_shape, channel_in_shape, dim_y, dim_x = input_tensor.shape
+        xx_ones = torch.ones([1, 1, 1, dim_x], dtype=torch.int32)
+        yy_ones = torch.ones([1, 1, 1, dim_y], dtype=torch.int32)
+
+        xx_range = torch.arange(dim_y, dtype=torch.int32)
+        yy_range = torch.arange(dim_x, dtype=torch.int32)
+        xx_range = xx_range[None, None, :, None]
+        yy_range = yy_range[None, None, :, None]
+
+        xx_channel = torch.matmul(xx_range, xx_ones)
+        yy_channel = torch.matmul(yy_range, yy_ones)
+
+        yy_channel = yy_channel.permute(0, 1, 3, 2)
+
+        xx_channel = xx_channel.float() / (dim_y - 1)
+        yy_channel = yy_channel.float() / (dim_x - 1)
+
+        xx_channel = xx_channel * 2 - 1
+        yy_channel = yy_channel * 2 - 1
+
+        xx_channel = xx_channel.repeat(batch_size_shape, 1, 1, 1)
+        yy_channel = yy_channel.repeat(batch_size_shape, 1, 1, 1)
+
+        input_tensor = input_tensor.cuda()
+        xx_channel = xx_channel.cuda()
+        yy_channel = yy_channel.cuda()
+        out = torch.cat([input_tensor, xx_channel, yy_channel], dim=1)
+
+        return out
 
 class Patches(nn.Module):
     def __init__(self, patch_size):
@@ -158,9 +200,9 @@ class TranformerEncoder(nn.Module):
         return outputs
 
 class VisionTransformer(nn.Module):
-    def __init__(self, **kwargs):
+    def __init__(self, FEATURE_SIZE=64, NUM_HEADS=8, MLP_SIZE=128, **kwargs):
         super().__init__()
-
+        # self.coordiEncoder = CoordinateEncoder()
         self.patches = Patches(PATCH_SIZE)
         self.encoded_patches = PatchEncoder(PATCH_SIZE, NUM_PATCHES, FEATURE_SIZE)
         # self.transformer_encoders = nn.Sequential(
@@ -180,6 +222,7 @@ class VisionTransformer(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        # x = self.coordiEncoder(x)
         patches = self.patches(x)
         encoded_patches = self.encoded_patches(patches)
         # encoder_output: (N, num_batches, feature_size)
