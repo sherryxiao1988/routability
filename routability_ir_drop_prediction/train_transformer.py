@@ -200,7 +200,7 @@ def validate(model, arg_dict):
     for metric, avg_metric in avg_metrics.items():
         print("===> Avg. {}: {:.4f}".format(metric, avg_metric / len(dataset)))
 
-    return avg_metrics['SSIM'] 
+    return avg_metrics['SSIM'] / len(dataset) 
 
 
 def objective(trial):
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     study = optuna.create_study(
         direction='maximize',
         storage='sqlite:///db.sqlite3',  # Specify the storage URL here.
-        study_name='transformer1'
+        study_name='transformer'
     )
     study.optimize(objective, n_trials=10)
 
