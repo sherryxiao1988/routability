@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
 from collections import OrderedDict
-from transformers import Dinov2Model, Dinov2PreTrainedModel
 
 PATCH_SIZE = 8
 NUM_PATCHES = 1024
-# FEATURE_SIZE = 64
-# NUM_HEADS = 8
-# MLP_SIZE = 128 
+FEATURE_SIZE = 64
+NUM_HEADS = 8
+MLP_SIZE = 128 
 NUM_ENCODERS = 5
 
+from transformers import Dinov2Model, Dinov2PreTrainedModel
 
 def load_state_dict(module, state_dict, strict=False, logger=None):
     unexpected_keys = []
@@ -127,55 +127,13 @@ class PatchEncoder(nn.Module):
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
 
-class ResidualBlock(nn.Module):
-    def __init__(self, filters, downsample=False, kernel_size=3):
-        super(ResidualBlock, self).__init__()
-        self.downsample = downsample
-        stride = 2 if downsample else 1
-
-        self.conv1 = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size,
-                               stride=stride, padding=kernel_size//2, bias=False)
-        self.relu1 = nn.ReLU()
-        self.bn1 = nn.BatchNorm2d(filters)
-        
-        self.conv2 = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=kernel_size,
-                               stride=1, padding=kernel_size//2, bias=False)
-        self.relu2 = nn.ReLU()
-        self.bn2 = nn.BatchNorm2d(filters)
-
-        if downsample:
-            self.downsample_conv = nn.Conv2d(in_channels=filters, out_channels=filters, kernel_size=1,
-                                             stride=2, padding=0, bias=False)
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(self.relu1(out))
-        
-        out = self.conv2(out)
-        
-        if self.downsample:
-            identity = self.downsample_conv(identity)
-        
-        out += identity
-        out = self.bn2(self.relu2(out))
-        
-        return out
-
 class UpConv(nn.Module):
     def __init__(self, dim_in, dim_out, skip_in=0):
         super().__init__()
-        # self.process_skip = nn.Sequential(
-        #     nn.Conv2d(skip_in, skip_in, kernel_size=3, padding=1),  # You can adjust the number of output channels
-        #     nn.LeakyReLU(),
-        #     nn.BatchNorm2d(skip_in)
-        # )
         self.main = nn.Sequential(
                 nn.ConvTranspose2d(dim_in + skip_in, dim_out, kernel_size=4, stride=2, padding=1, bias=False),
                 nn.BatchNorm2d(dim_out),
                 nn.LeakyReLU(),
-                # ResidualBlock(dim_out),
         )
 
     def forward(self, input, skip=None):
@@ -200,10 +158,9 @@ class TranformerEncoder(nn.Module):
             outputs.append(x)
         return outputs
 
-class VisionTransformer(Dinov2PreTrainedModel):
-    def __init__(self, skip_connection=True, FEATURE_SIZE=64, NUM_HEADS=8, MLP_SIZE=128, **kwargs):
-        super().__init__()
-        self.skip_connection = skip_connection
+class Dinov2VisionTransformer(Dinov2PreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
         # self.coordiEncoder = CoordinateEncoder()
         self.patches = Patches(PATCH_SIZE)
         self.encoded_patches = PatchEncoder(PATCH_SIZE, NUM_PATCHES, FEATURE_SIZE)
@@ -211,53 +168,42 @@ class VisionTransformer(Dinov2PreTrainedModel):
         #    *[nn.TransformerEncoderLayer(FEATURE_SIZE, NUM_HEADS, dim_feedforward=MLP_SIZE, batch_first=True) for _ in range(NUM_ENCODERS)],
         # )
         self.transformer_encoders = TranformerEncoder(FEATURE_SIZE, NUM_HEADS, MLP_SIZE, NUM_ENCODERS)
-        self.dinov2 = Dinov2Model()
+        self.dinov2 = Dinov2Model(config)
 
         # now (N, 512, 16, 16)
         self.upconv1 = UpConv(1024, 512)
-        if self.skip_connection:
-            self.upconv2 = UpConv(512, 256, 256)
-            self.upconv3 = UpConv(256, 128, 64)
-            self.upconv4 = UpConv(128, 64, 16)
-            self.upconv5 = UpConv(64, 32, 4)
-        else:
-            self.upconv2 = UpConv(512, 256)
-            self.upconv3 = UpConv(256, 128)
-            self.upconv4 = UpConv(128, 64)
-            self.upconv5 = UpConv(64, 32)
+        self.upconv2 = UpConv(512, 256)
+        self.upconv3 = UpConv(256, 128)
+        self.upconv4 = UpConv(128, 64)
+        self.upconv5 = UpConv(64, 32)
 
-        self.conv_out = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv_out = nn.Conv2d(35, 1, kernel_size=3, stride=1, padding=1, bias=False)
 
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        dinov2_output = self.dinov2(x)
+        dinonv2_patch_embeddings = dinov2_output.last_hidden_state[:,1:,:]
+        dinonv2_output = dinonv2_patch_embeddings.reshape(-1, 256, 256, 3)
+        dinonv2_output = dinonv2_output.permute(0, 3, 1, 2)
+        # print("dinov2_output shape: ", dinonv2_patch_embeddings.shape)
+
         # x = self.coordiEncoder(x)
         patches = self.patches(x)
         encoded_patches = self.encoded_patches(patches)
         # encoder_output: (N, num_patches, feature_size)
         # [128, 1024, 64]
         encoder_output = self.transformer_encoders(encoded_patches)
-        dinov2_output = self.dinov2(x)
         x = encoder_output[-1]
         x = x.view(-1, 1024, 8, 8)
-        # x = encoder_output.view(-1, 1024, 8, 8)
         # input (N, 1024, 8, 8)
         x = self.upconv1(x)
-        if self.skip_connection:
-            # input (N, 512 + 256, 16, 16)
-            x = self.upconv2(x, skip=encoder_output[-2])
-            # input (N, 256 + 64, 32, 32)
-            x = self.upconv3(x, skip=encoder_output[-3])
-            # input (N, 128 + 16, 64, 64)
-            x = self.upconv4(x, skip=encoder_output[-4])
-            # input (N, 64 + 4, 128, 128)
-            x = self.upconv5(x, skip=encoder_output[-5])
-        else:
-            x = self.upconv2(x)
-            x = self.upconv3(x)
-            x = self.upconv4(x)
-            x = self.upconv5(x)
+        x = self.upconv2(x)
+        x = self.upconv3(x)
+        x = self.upconv4(x)
+        x = self.upconv5(x)
 
+        x = torch.cat((x, dinonv2_output), dim=1)
         x = self.conv_out(x)
         x = self.sigmoid(x)
 

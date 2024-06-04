@@ -3,7 +3,7 @@
 import os.path as osp
 import copy
 import numpy as np
-from torchvision.transforms import Compose
+from torchvision.transforms import Compose, ToPILImage, Resize, ToTensor  # Add these imports
 
 class CongestionDataset(object):
     def __init__(self, ann_file, dataroot, pipeline=None, test_mode=False, **kwargs):
@@ -15,6 +15,12 @@ class CongestionDataset(object):
             self.pipeline = Compose(pipeline)
         else:
             self.pipeline = None
+
+        # self.transform = Compose([
+        #     ToPILImage(),
+        #     Resize((518, 224)),  # Resize to 224x224
+        #     ToTensor(),
+        # ])
 
         self.data_infos = self.load_annotations()
 
@@ -38,6 +44,8 @@ class CongestionDataset(object):
         
         feature =  results['feature'].transpose(2, 0, 1).astype(np.float32)
         label = results['label'].transpose(2, 0, 1).astype(np.float32)
+        # feature =  self.transform(results['feature'])
+        # label = self.transform(results['label'])
 
         return feature, label, results['label_path']
 
