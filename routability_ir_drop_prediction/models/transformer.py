@@ -200,8 +200,9 @@ class TranformerEncoder(nn.Module):
         return outputs
 
 class VisionTransformer(nn.Module):
-    def __init__(self, FEATURE_SIZE=64, NUM_HEADS=8, MLP_SIZE=128, **kwargs):
+    def __init__(self, skip_connection=True, FEATURE_SIZE=64, NUM_HEADS=8, MLP_SIZE=128, **kwargs):
         super().__init__()
+        self.skip_connection = skip_connection
         # self.coordiEncoder = CoordinateEncoder()
         self.patches = Patches(PATCH_SIZE)
         self.encoded_patches = PatchEncoder(PATCH_SIZE, NUM_PATCHES, FEATURE_SIZE)
@@ -212,10 +213,16 @@ class VisionTransformer(nn.Module):
 
         # now (N, 512, 16, 16)
         self.upconv1 = UpConv(1024, 512)
-        self.upconv2 = UpConv(512, 256, 256)
-        self.upconv3 = UpConv(256, 128, 64)
-        self.upconv4 = UpConv(128, 64, 16)
-        self.upconv5 = UpConv(64, 32, 4)
+        if self.skip_connection:
+            self.upconv2 = UpConv(512, 256, 256)
+            self.upconv3 = UpConv(256, 128, 64)
+            self.upconv4 = UpConv(128, 64, 16)
+            self.upconv5 = UpConv(64, 32, 4)
+        else:
+            self.upconv2 = UpConv(512, 256)
+            self.upconv3 = UpConv(256, 128)
+            self.upconv4 = UpConv(128, 64)
+            self.upconv5 = UpConv(64, 32)
 
         self.conv_out = nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1, bias=False)
 
@@ -225,7 +232,7 @@ class VisionTransformer(nn.Module):
         # x = self.coordiEncoder(x)
         patches = self.patches(x)
         encoded_patches = self.encoded_patches(patches)
-        # encoder_output: (N, num_batches, feature_size)
+        # encoder_output: (N, num_patches, feature_size)
         # [128, 1024, 64]
         encoder_output = self.transformer_encoders(encoded_patches)
         x = encoder_output[-1]
@@ -233,14 +240,21 @@ class VisionTransformer(nn.Module):
         # x = encoder_output.view(-1, 1024, 8, 8)
         # input (N, 1024, 8, 8)
         x = self.upconv1(x)
-        # input (N, 512 + 256, 16, 16)
-        x = self.upconv2(x, skip=encoder_output[-2])
-        # input (N, 256 + 64, 32, 32)
-        x = self.upconv3(x, skip=encoder_output[-3])
-        # input (N, 128 + 16, 64, 64)
-        x = self.upconv4(x, skip=encoder_output[-4])
-        # input (N, 64 + 4, 128, 128)
-        x = self.upconv5(x, skip=encoder_output[-5])
+        if self.skip_connection:
+            # input (N, 512 + 256, 16, 16)
+            x = self.upconv2(x, skip=encoder_output[-2])
+            # input (N, 256 + 64, 32, 32)
+            x = self.upconv3(x, skip=encoder_output[-3])
+            # input (N, 128 + 16, 64, 64)
+            x = self.upconv4(x, skip=encoder_output[-4])
+            # input (N, 64 + 4, 128, 128)
+            x = self.upconv5(x, skip=encoder_output[-5])
+        else:
+            x = self.upconv2(x)
+            x = self.upconv3(x)
+            x = self.upconv4(x)
+            x = self.upconv5(x)
+
         x = self.conv_out(x)
         x = self.sigmoid(x)
 

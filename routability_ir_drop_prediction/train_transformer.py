@@ -81,21 +81,27 @@ class CosineRestartLr(object):
 
 
 def train(arg_dict, 
-        #   FEATURE_SIZE, NUM_HEADS, MLP_SIZE, 
-          LR, WEIGHT_DECAY, BATCH_SIZE, trial_number):
+        skip_connection,
+        #   FEATURE_SIZE, NUM_HEADS, 
+        MLP_SIZE, 
+        LR, 
+        # WEIGHT_DECAY, BATCH_SIZE, 
+          trial_number):
     save_path = "trail_" + str(trial_number)
     arg_dict['save_path'] = save_path
     if not os.path.exists(arg_dict['save_path']):
         os.makedirs(arg_dict['save_path'])
-    with open(os.path.join(arg_dict['save_path'],  'arg.json'), 'wt') as f:
-      json.dump(arg_dict, f, indent=4)
+    # with open(os.path.join(arg_dict['save_path'],  'arg.json'), 'wt') as f:
+    #   json.dump(arg_dict, f, indent=4)
 
     arg_dict['ann_file'] = arg_dict['ann_file_train']
     arg_dict['test_mode'] = False
-    arg_dict['batch_size'] = BATCH_SIZE
+    arg_dict['skip_connection'] = skip_connection
+    # arg_dict['batch_size'] = BATCH_SIZE
     # arg_dict['FEATURE_SIZE'] = FEATURE_SIZE
     # arg_dict['NUM_HEADS'] = NUM_HEADS
-    # arg_dict['MLP_SIZE'] = MLP_SIZE
+    arg_dict['MLP_SIZE'] = MLP_SIZE
+    arg_dict['lr'] = LR
     # arg_dict['NUM_ENCODERS'] = NUM_ENCODERS
 
     print('===> Loading datasets')
@@ -112,10 +118,10 @@ def train(arg_dict,
     loss = build_loss(arg_dict)
 
     # Build Optimizer
-    optimizer = optim.AdamW(model.parameters(), lr=LR, betas=(0.9, 0.999), weight_decay=WEIGHT_DECAY)
+    optimizer = optim.AdamW(model.parameters(), lr=arg_dict['lr'],  betas=(0.9, 0.999), weight_decay=arg_dict['weight_decay'])
 
     # Build lr scheduler
-    cosine_lr = CosineRestartLr([LR], [arg_dict['max_iters']], [1], 1e-7)
+    cosine_lr = CosineRestartLr(arg_dict['lr'], [arg_dict['max_iters']], [1], 1e-7)
     cosine_lr.set_init_lr(optimizer)
 
     epoch_loss = 0
@@ -206,26 +212,33 @@ def validate(model, arg_dict):
 
 def objective(trial):
     # Suggest hyperparameters
-    # PATCH_SIZE = trial.suggest_int('PATCH_SIZE', 4, 16)
+    # PATCH_SIZE = trial.suggest_int('PATCH_SIZE', 4, 8, 16)
     # FEATURE_SIZE = trial.suggest_int('FEATURE_SIZE', 32, 128)
     # NUM_HEADS = trial.suggest_int('NUM_HEADS', 4, 16)
     # FEATURE_SIZE = trial.suggest_categorical('FEATURE_SIZE', [i for i in range(32, 129) if i % NUM_HEADS == 0])
-    # MLP_SIZE = trial.suggest_int('MLP_SIZE', 64, 256)
+    MLP_SIZE = trial.suggest_categorical('MLP_SIZE', [64, 128, 256])
     # NUM_ENCODERS = trial.suggest_int('NUM_ENCODERS', 3, 12)
     LR = trial.suggest_loguniform('lr', 1e-5, 1e-3)
-    WEIGHT_DECAY = trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
-    BATCH_SIZE = trial.suggest_categorical('BATCH_SIZE', [32, 64, 128])
+    # WEIGHT_DECAY = trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
+    # BATCH_SIZE = trial.suggest_categorical('batch_size', [32, 64, 128])
+    skip_connection = trial.suggest_categorical('skip_connection', [True, False])
 
     argp = Parser()
     arg = argp.parser.parse_args()
     arg_dict = vars(arg)
 
-    model = train(arg_dict, 
-                # PATCH_SIZE, 
-                # FEATURE_SIZE,
-                # NUM_HEADS, MLP_SIZE,
-                # NUM_ENCODERS,
-                LR, WEIGHT_DECAY, BATCH_SIZE, trial.number)
+    model = train(
+        arg_dict, 
+        skip_connection,
+        # PATCH_SIZE, 
+        # FEATURE_SIZE,
+        # NUM_HEADS, 
+        MLP_SIZE,
+        # NUM_ENCODERS,
+        LR, 
+        # WEIGHT_DECAY, BATCH_SIZE, 
+        trial.number)
+                
     val_loss = validate(model, arg_dict)
     return val_loss
 
@@ -234,7 +247,7 @@ if __name__ == "__main__":
     study = optuna.create_study(
         direction='maximize',
         storage='sqlite:///db.sqlite3',  # Specify the storage URL here.
-        study_name='transformer'
+        study_name='transformer-skip'
     )
     study.optimize(objective, n_trials=10)
 
