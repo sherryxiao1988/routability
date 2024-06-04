@@ -11,10 +11,8 @@ from datasets.build_dataset import build_dataset
 from utils.losses import build_loss
 from models.build_model import build_model
 from utils.configs import Parser
-from math import cos, pi, sqrt
+from math import cos, pi
 import sys, os, subprocess
-
-from transformers import Dinov2Model
 
 
 def checkpoint(model, epoch, save_path):
@@ -108,20 +106,6 @@ def train():
     arg_dict['ann_file'] = arg_dict['ann_file_train']
     arg_dict['test_mode'] = False 
 
-    if not arg_dict['cpu']:
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        elif torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-    else:
-        device = torch.device("cpu")
-    print("using device: ", device)
-    dinov2 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
-    dinov2 = dinov2.to(device)
-    dinov2.eval()
-
     print('===> Loading datasets')
     # Initialize dataset
     dataset = build_dataset(arg_dict)
@@ -162,22 +146,6 @@ def train():
 
                 regular_lr = cosine_lr.get_regular_lr(iter_num)
                 cosine_lr._set_lr(optimizer, regular_lr)
-
-                with torch.no_grad():
-                    embeddings = dinov2.get_intermediate_layers(input, n=1)[0]
-                    # print("embeddings: ", embeddings.shape)
-                    # embeddings:  torch.Size([32, 256, 1536]
-                    two_d_feature_dim = int(sqrt(embeddings.shape[1]))
-                    embeddings = embeddings.permute(0, 2, 1).view(input.size(0), embeddings.shape[2], two_d_feature_dim, two_d_feature_dim)
-                    # upsampling
-                    logits = torch.nn.functional.interpolate(embeddings, size=(224, 224), mode='bilinear', align_corners=False)
-                    # print("logits: ", logits.shape)
-                    # logits:  torch.Size([32, 1536, 224, 224])
-
-
-                # Concatenate the original input with DINOv2 features
-                concatenated_features = torch.cat((input, logits), dim=1)
-                input = concatenated_features
 
                 prediction = model(input)
 
