@@ -25,6 +25,14 @@ class Parser(object):
         
     def get_remainder(self):
         if self.parser.parse_args().task == 'congestion_gpdl':
+
+            # if os.path.exists('/Users'):
+            #     dataroot_default = '/Users/hangfeilin/Desktop/stanford_class/CS231N/project/routability_features_training_data/congestion/'
+            # elif os.path.exists('/home'):
+            #     dataroot_default = '/home/hangfeilin/cs231n_project/routability_features_training_data/congestion/'
+            # else:
+            #     raise EnvironmentError("Neither '/Users' nor '/home' directory found.")
+            # self.parser.add_argument('--dataroot', default=dataroot_default)
             self.parser.add_argument('--dataroot', default='./routability_features_training_data/congestion')
             self.parser.add_argument('--ann_file_train', default='./files/train_N28.csv')
             self.parser.add_argument('--ann_file_test', default='./files/test_N28.csv')
@@ -33,9 +41,10 @@ class Parser(object):
             self.parser.add_argument('--batch_size', default=32)
             self.parser.add_argument('--aug_pipeline', default=['Flip'])
             
-            self.parser.add_argument('--model_type', default='VisionTransformer')
-            # self.parser.add_argument('--model_type', default='GPDL')
-            self.parser.add_argument('--in_channels', default=3)
+            # self.parser.add_argument('--model_type', default='VisionTransformer')
+            self.parser.add_argument('--model_type', default='GPDL')
+            self.parser.add_argument('--in_channels', default=771)
+            # self.parser.add_argument('--in_channels', default=3)
             self.parser.add_argument('--out_channels', default=1)
             self.parser.add_argument('--lr', default=1e-5)
             self.parser.add_argument('--weight_decay', default=0)
